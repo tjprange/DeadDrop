@@ -1,0 +1,182 @@
+#!/bin/bash
+# FYI, this command removes file abc if it is empty: [ -s abc ] || rm -f abc
+
+usage="usage: $0 port"
+
+#use the standard version of echo
+echo=/bin/echo
+
+#Make sure we have the right number of arguments
+if test $# -gt 1 -o $# -lt 1
+then
+	${echo} $usage 1>&2
+	exit 1
+fi
+
+#Clean up any previous runs
+${echo} '#Initializing - Cleaning up - ignore Operation Not Permitted errors'
+killall -q -u $USER otp_*
+rm -f plaintext*_*
+rm -f key20
+rm -f key70000
+
+#Record the ports passed in
+encport=$1
+
+history=()
+hist_count=0
+
+#Run the daemons
+#otp_d $encport >/dev/null &
+coproc otp_fd { otp_d $encport; }
+enc_id=$!
+out=${otp_fd[0]}
+
+sleep 5
+
+${echo}
+${echo} '#-----------------------------------------'
+${echo} '#START OF GRADING SCRIPT'
+${echo} '#keygen 20 > key20'
+keygen 20 > key20
+${echo} "===01=== #5 POINTS: key20 must exist"
+[ -s key20 ] || rm -f key20 
+if [ -f key20 ]; then ${echo} 'key20 exists!'; else ${echo} 'key20 DOES NOT EXIST'; fi 
+${echo}
+${echo} "#-----------------------------------------"
+${echo} "===02=== #5 POINTS: Number of characters in key20, should be 21:"
+wc -m key20
+${echo}
+${echo} "#-----------------------------------------"
+${echo} '#keygen 70000 > key70000'
+keygen 70000 > key70000
+${echo} "===03=== #5 POINTS: Number of characters in key70000, should be 70001:"
+[ -s key70000 ] || rm -f key70000 
+wc -m key70000
+${echo}
+${echo} "#-----------------------------------------"
+${echo} '#otp post TJ plaintext1 key20 $encport'
+${echo} "===04=== #10 POINTS: Should return error about too-short key"
+otp post TJ plaintext1 key20 $encport
+${echo}
+${echo} "#-----------------------------------------"
+${echo} '#otp post TJ plaintext1 key70000 $encport'
+${echo} "===05=== #20 POINTS: Should return encrypted version of plaintext1"
+otp post TJ plaintext1 key70000 $encport
+read line <&"${otp_fd[0]}"
+history+=($line)
+cat "$line"
+${echo}
+${echo} '#-----------------------------------------'
+${echo} '#otp post TJ plaintext1 key70000 $encport'
+otp post TJ plaintext1 key70000 $encport
+read ciphertext1 <&"${otp_fd[0]}"
+history+=($ciphertext1)
+${echo} "===06=== #10 POINTS: ciphertext1 must exist"
+[ -s $ciphertext1 ] || rm -f $ciphertext1 
+if [ -f $ciphertext1 ]; then ${echo} 'ciphertext1 exists!'; else ${echo} 'ciphertext1 DOES NOT EXIST'; fi 
+${echo}
+${echo} '#-----------------------------------------'
+${echo} '===07=== #10 POINTS: ciphertext1 must be same number of chars as source'
+${echo} '#wc -m plaintext1'
+wc -m plaintext1
+${echo} '#Should be same: wc -m ciphertext1'
+wc -m $ciphertext1
+${echo}
+${echo} '#-----------------------------------------'
+${echo} '===08=== #5 POINTS: ciphertext1 should look encrypted'
+cat $ciphertext1
+${echo}
+${echo} '#-----------------------------------------'
+${echo} '#otp_get "Ben" ciphertext1 key70000 $encport'
+${echo} '===09=== #5 POINTS: Should fail giving error that there are no messages for Ben'
+otp get "Ben" key70000 $encport
+${echo}
+${echo} '#-----------------------------------------'
+${echo} '===10=== #20 POINTS: should return decrypted ciphertext1 that matches source'
+${echo} '#cat plaintext1'
+cat plaintext1
+${echo} '#otp get TJ key70000 $encport'
+otp get TJ key70000 $encport
+${echo}
+${echo} '#-----------------------------------------'
+${echo} '#otp get TJ key70000 $encport > plaintext1_a'
+otp get TJ key70000 $encport > plaintext1_a
+${echo} "===11=== #10 POINTS: plaintext1_a must exist"
+[ -s plaintext1_a ] || rm -f plaintext1_a
+if [ -f plaintext1_a ]; then ${echo} 'plaintext1_a exists!'; else ${echo} 'plaintext1_a DOES NOT EXIST'; fi
+${echo}
+${echo} '#-----------------------------------------'
+${echo} '#cmp plaintext1 plaintext1_a'
+${echo} '===12=== #5 POINTS: plaintext1 must be the same as plaintext1_a:'
+${echo} '#echo $? should be == 0, which means the cmp succeeded!'
+cmp plaintext1 plaintext1_a
+echo $?
+${echo}
+otp post "TJ"     plaintext3 key70000 $encport &
+read line <&"${otp_fd[0]}"
+history+=($line)
+${echo} '#-----------------------------------------'
+${echo} '===13=== #20 POINTS: concurrent test of encryption - look for 4 properly-sized ciphertext# files, or 5 where the 5th is 0 bytes'
+${echo} '===14=== #5 POINTS: Should be only one error about plaintext5 being bad'
+rm -f plaintext*_*
+otp post "Ben"    plaintext1 key70000 $encport &
+otp post "TJ"     plaintext2 key70000 $encport &
+otp post "Ryan"   plaintext3 key70000 $encport &
+otp post "Nathan" plaintext4 key70000 $encport &
+otp post "Bram"   plaintext5 key70000 $encport &
+${echo} '#Six second sleep, your program must complete in this time'
+sleep 6
+#ls -pla
+num_read=1
+for ((i = 1; i < 5; i++)); do
+    read -t 0.01 line <&"${otp_fd[0]}" || continue
+    ((num_read++))
+    history+=($line)
+    ${echo} $(wc -c $line)
+done
+
+${echo} '#-----------------------------------------'
+${echo} 'Waiting for any remaining files'
+for ((i = num_read; i < 5; i++)); do
+    read -t 6 line <&"${otp_fd[0]}" || continue
+    ${echo} $line
+    history+=($line)
+done
+len=${#history[@]}
+touch ${history[ $(( len - 5 )) ]}
+
+${echo}
+${echo} '#-----------------------------------------'
+${echo} '===15=== #15 POINTS: concurrent test of decryption - look for 4 plaintext#_a files that match the plaintext# files'
+otp get "TJ"     key70000 $encport > plaintext2_a &
+otp get "Ben"    key70000 $encport > plaintext1_a &
+otp get "Ryan"   key70000 $encport > plaintext3_a &
+otp get "Nathan" key70000 $encport > plaintext4_a &
+${echo} '#Six second sleep, your program must complete in this time'
+sleep 6
+#ls -pla
+${echo}
+cmp plaintext4 plaintext4_a
+for ((i = 1; i < 5; i++)); do
+    cmp plaintext${i} plaintext${i}_a && echo "plaintext${i}_a matches" 
+done
+#head -c2 plaintext4
+#head -c2 plaintext4_a
+${echo}
+${echo} '#-----------------------------------------'
+${echo} '#There should be only one ciphertext file remaining (-1 for each additional file, up to 5)'
+for (( i = 0; i < ${#history[@]}; i++ )); do
+    [[ -f ${history[i]} ]] && echo "${history[i]} exists" && rm "${history[i]}"
+done
+
+#Clean up
+${echo}
+${echo} '#-----------------------------------------'
+${echo} '#Cleaning up - ignore Operation Not Permitted errors'
+killall -q -u $USER otp_*
+rm -f plaintext*_*
+rm -f key20
+rm -f key70000
+${echo}
+${echo} '#SCRIPT COMPLETE'

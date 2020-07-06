@@ -1,0 +1,94 @@
+#Initializing - Cleaning up - ignore Operation Not Permitted errors
+
+#-----------------------------------------
+#START OF GRADING SCRIPT
+#keygen 20 > key20
+===01=== #5 POINTS: key20 must exist
+key20 exists!
+
+#-----------------------------------------
+===02=== #5 POINTS: Number of characters in key20, should be 21:
+21 key20
+
+#-----------------------------------------
+#keygen 70000 > key70000
+===03=== #5 POINTS: Number of characters in key70000, should be 70001:
+70001 key70000
+
+#-----------------------------------------
+#otp post TJ plaintext1 key20 $encport
+===04=== #10 POINTS: Should return error about too-short key
+Error: 'key20' is too short
+
+#-----------------------------------------
+#otp post TJ plaintext1 key70000 $encport
+===05=== #20 POINTS: Should return encrypted version of plaintext1
+ PICAKBSWADKRDIPROMJDEDUAFUOMY BRDTNG
+#-----------------------------------------
+#otp post TJ plaintext1 key70000 $encport
+===06=== #10 POINTS: ciphertext1 must exist
+ciphertext1 exists!
+
+#-----------------------------------------
+===07=== #10 POINTS: ciphertext1 must be same number of chars as source
+#wc -m plaintext1
+37 plaintext1
+#Should be same: wc -m ciphertext1
+37 /nfs/stak/users/pranget/cs344/Block4/DeadDrop/TJ.cyphertext.78670
+
+#-----------------------------------------
+===08=== #5 POINTS: ciphertext1 should look encrypted
+ PICAKBSWADKRDIPROMJDEDUAFUOMY BRDTNG
+#-----------------------------------------
+#otp_get "Ben" ciphertext1 key70000 $encport
+===09=== #5 POINTS: Should fail giving error that there are no messages for Ben
+There are no messages for Ben
+
+#-----------------------------------------
+===10=== #20 POINTS: should return decrypted ciphertext1 that matches source
+#cat plaintext1
+THE RED GOOSE FLIES AT MIDNIGHT STOP
+#otp get TJ key70000 $encport
+THE RED GOOSE FLIES AT MIDNIGHT STOP
+
+#-----------------------------------------
+#otp get TJ key70000 $encport > plaintext1_a
+===11=== #10 POINTS: plaintext1_a must exist
+plaintext1_a exists!
+
+#-----------------------------------------
+#cmp plaintext1 plaintext1_a
+===12=== #5 POINTS: plaintext1 must be the same as plaintext1_a:
+#echo $? should be == 0, which means the cmp succeeded!
+0
+
+#-----------------------------------------
+===13=== #20 POINTS: concurrent test of encryption - look for 4 properly-sized ciphertext# files, or 5 where the 5th is 0 bytes
+===14=== #5 POINTS: Should be only one error about plaintext5 being bad
+#Six second sleep, your program must complete in this time
+Error: plaintext contains bad characters
+317 /nfs/stak/users/pranget/cs344/Block4/DeadDrop/TJ.cyphertext.79150
+37 /nfs/stak/users/pranget/cs344/Block4/DeadDrop/Ben.cyphertext.79151
+17 /nfs/stak/users/pranget/cs344/Block4/DeadDrop/Ryan.cyphertext.79152
+69333 /nfs/stak/users/pranget/cs344/Block4/DeadDrop/Nathan.cyphertext.79157
+#-----------------------------------------
+Waiting for any remaining files
+
+#-----------------------------------------
+===15=== #15 POINTS: concurrent test of decryption - look for 4 plaintext#_a files that match the plaintext# files
+#Six second sleep, your program must complete in this time
+
+plaintext1_a matches
+plaintext2_a matches
+plaintext3_a matches
+plaintext4_a matches
+
+#-----------------------------------------
+#There should be only one ciphertext file remaining (-1 for each additional file, up to 5)
+/nfs/stak/users/pranget/cs344/Block4/DeadDrop/TJ.cyphertext.79047 exists
+
+#-----------------------------------------
+#Cleaning up - ignore Operation Not Permitted errors
+./p4gradingscript: line 31: 78611 Terminated              otp_d $encport
+
+#SCRIPT COMPLETE
